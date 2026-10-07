@@ -22,28 +22,80 @@ export type SearchHit = SampleComponent & {
 };
 
 let index: IndexedSample[] | null = null;
+let buildPromise: Promise<IndexedSample[]> | null = null;
 
 export function getIndex(): IndexedSample[] | null {
   return index;
 }
 
+/** Yield so progress UI can paint between heavy embed calls. */
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(() => resolve(), { timeout: 48 });
+      void id;
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
 export async function buildIndex(
   onItem?: (done: number, total: number, label: string) => void,
 ): Promise<IndexedSample[]> {
-  const out: IndexedSample[] = [];
-  const total = SAMPLES.length;
+  if (index) return index;
+  if (buildPromise) return buildPromise;
 
-  for (let i = 0; i < SAMPLES.length; i++) {
-    const sample = SAMPLES[i]!;
-    onItem?.(i, total, sample.label);
-    const textEmbedding = await embedText(sampleDocumentText(sample));
-    const imageEmbedding = await embedImageUrl(sample.src);
-    out.push({ ...sample, textEmbedding, imageEmbedding });
+  buildPromise = (async () => {
+    const out: IndexedSample[] = [];
+    const total = SAMPLES.length;
+    const errors: string[] = [];
+
+    for (let i = 0; i < SAMPLES.length; i++) {
+      const sample = SAMPLES[i]!;
+      onItem?.(i, total, sample.label);
+      await yieldToMain();
+
+      try {
+        const textEmbedding = await embedText(sampleDocumentText(sample));
+        await yieldToMain();
+        const imageEmbedding = await embedImageUrl(sample.src);
+        out.push({ ...sample, textEmbedding, imageEmbedding });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[index] failed on ${sample.id}:`, err);
+        errors.push(`${sample.label}: ${msg}`);
+      }
+    }
+
+    onItem?.(total, total, 'done');
+
+    if (out.length === 0) {
+      buildPromise = null;
+      throw new Error(
+        errors[0]
+          ? `Indexing failed — ${errors[0]}`
+          : 'Indexing failed — no samples could be embedded',
+      );
+    }
+
+    if (errors.length > 0) {
+      console.warn(
+        `[index] ${errors.length}/${total} samples failed; continuing with ${out.length}`,
+        errors,
+      );
+    }
+
+    index = out;
+    return out;
+  })();
+
+  try {
+    return await buildPromise;
+  } catch (err) {
+    buildPromise = null;
+    throw err;
   }
-
-  onItem?.(total, total, 'done');
-  index = out;
-  return out;
 }
 
 function rank(

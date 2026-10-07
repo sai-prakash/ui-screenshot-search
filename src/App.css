@@ -342,3 +342,63 @@ h1 {
 .footer a {
   color: var(--text-muted);
 }
+
+.grid-pending {
+  opacity: 0.72;
+  transition: opacity 0.18s ease;
+}
+
+.skeleton-card {
+  pointer-events: none;
+}
+
+.skeleton-block {
+  background: linear-gradient(
+    90deg,
+    #12151c 0%,
+    #1a2130 45%,
+    #12151c 90%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 10px;
+  border-radius: 999px;
+  margin-top: 8px;
+  background: linear-gradient(
+    90deg,
+    #161b25 0%,
+    #222a3a 45%,
+    #161b25 90%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.skeleton-line.short {
+  width: 42%;
+  margin-top: 0;
+  height: 18px;
+}
+
+.skeleton-line.medium {
+  width: 72%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block,
+  .skeleton-line {
+    animation: none;
+  }
+}

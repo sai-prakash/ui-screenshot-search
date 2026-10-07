@@ -2,13 +2,13 @@ import {
   AutoConfig,
   AutoModel,
   AutoProcessor,
-  load_image,
   type PreTrainedModel,
   type Processor,
   type ProgressCallback,
   type RawImage,
   type Tensor,
 } from '@huggingface/transformers';
+import { loadImageForEmbedding } from './image';
 
 /**
  * EmbeddingGemma 2 ONNX (multimodal text + image).
@@ -156,17 +156,16 @@ export async function embedText(text: string): Promise<Float32Array> {
 }
 
 export async function embedImageUrl(url: string): Promise<Float32Array> {
-  const image = await load_image(url);
+  const image = await loadImageForEmbedding(url);
   return embeddingFromInputs(null, image);
 }
 
 export async function embedImageBlob(blob: Blob): Promise<Float32Array> {
-  const url = URL.createObjectURL(blob);
-  try {
-    return await embedImageUrl(url);
-  } finally {
-    URL.revokeObjectURL(url);
+  if (!blob || blob.size === 0) {
+    throw new Error('Empty image — paste or upload a PNG/JPEG/WebP (or SVG) screenshot');
   }
+  const image = await loadImageForEmbedding(blob);
+  return embeddingFromInputs(null, image);
 }
 
 export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
