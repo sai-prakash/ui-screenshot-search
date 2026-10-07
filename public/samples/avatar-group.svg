@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Avatar · Group</text>
+      <circle cx="180" cy="150" r="28" fill="#3d4f7a" stroke="#0b0d12" stroke-width="3"/>
+      <text x="180" y="156" text-anchor="middle" fill="#c5d2ff" font-family="Inter,system-ui,sans-serif" font-size="14" font-weight="600">AL</text>
+      <circle cx="220" cy="150" r="28" fill="#4a3d7a" stroke="#0b0d12" stroke-width="3"/>
+      <text x="220" y="156" text-anchor="middle" fill="#d6c5ff" font-family="Inter,system-ui,sans-serif" font-size="14" font-weight="600">GH</text>
+      <circle cx="260" cy="150" r="28" fill="#3d6a5a" stroke="#0b0d12" stroke-width="3"/>
+      <text x="260" y="156" text-anchor="middle" fill="#c5ffe0" font-family="Inter,system-ui,sans-serif" font-size="14" font-weight="600">AT</text>
+      <circle cx="300" cy="150" r="28" fill="#1a2230" stroke="#0b0d12" stroke-width="3"/>
+      <text x="300" y="156" text-anchor="middle" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="600">+5</text>
+    </svg>

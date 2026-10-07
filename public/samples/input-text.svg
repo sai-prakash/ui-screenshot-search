@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Input · Text</text>
+      <text x="72" y="110" fill="#c9d0e0" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="500">Email address</text>
+      <rect x="72" y="122" width="336" height="44" rx="10" fill="#0b0d12" stroke="#2a3344"/>
+      <text x="88" y="149" fill="#5c667a" font-family="Inter,system-ui,sans-serif" font-size="14">you@company.com</text>
+    </svg>

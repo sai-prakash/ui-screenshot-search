@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Card · Profile</text>
+      <rect x="100" y="92" width="280" height="140" rx="14" fill="#161b25" stroke="#263044"/>
+      <circle cx="148" cy="162" r="28" fill="#2a3550"/>
+      <text x="148" y="168" text-anchor="middle" fill="#9db4ff" font-family="Inter,system-ui,sans-serif" font-size="16" font-weight="600">SP</text>
+      <text x="196" y="152" fill="#f2f5fb" font-family="Inter,system-ui,sans-serif" font-size="16" font-weight="600">Sai Prakash</text>
+      <text x="196" y="176" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Design Engineer</text>
+      <rect x="196" y="188" width="72" height="26" rx="8" fill="#5b8cff"/>
+      <text x="232" y="205" text-anchor="middle" fill="#fff" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="600">Follow</text>
+    </svg>

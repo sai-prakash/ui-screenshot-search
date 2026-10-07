@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Nav · Sidebar</text>
+      <rect x="56" y="84" width="160" height="152" rx="12" fill="#161b25" stroke="#263044"/>
+      <rect x="68" y="100" width="136" height="32" rx="8" fill="#243152"/>
+      <text x="84" y="121" fill="#9db4ff" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="600">Dashboard</text>
+      <text x="84" y="161" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Projects</text>
+      <text x="84" y="193" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Team</text>
+      <text x="84" y="225" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Billing</text>
+      <rect x="232" y="84" width="192" height="152" rx="12" fill="#0f131a" stroke="#1e2430"/>
+      <text x="256" y="140" fill="#5c667a" font-family="Inter,system-ui,sans-serif" font-size="12">Main content</text>
+    </svg>

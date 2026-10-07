@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Badge · Status</text>
+      <rect x="90" y="120" width="80" height="32" rx="16" fill="#143528"/>
+      <circle cx="110" cy="136" r="4" fill="#3dd68c"/>
+      <text x="122" y="141" fill="#3dd68c" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="600">Success</text>
+      <rect x="190" y="120" width="90" height="32" rx="16" fill="#2a2410"/>
+      <circle cx="210" cy="136" r="4" fill="#f0b429"/>
+      <text x="222" y="141" fill="#f0b429" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="600">Warning</text>
+      <rect x="300" y="120" width="70" height="32" rx="16" fill="#2a1418"/>
+      <circle cx="318" cy="136" r="4" fill="#e5484d"/>
+      <text x="330" y="141" fill="#e5484d" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="600">Error</text>
+    </svg>

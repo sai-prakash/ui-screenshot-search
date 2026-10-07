@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Card · Stats</text>
+      <rect x="80" y="90" width="320" height="140" rx="14" fill="#161b25" stroke="#263044"/>
+      <text x="104" y="128" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Monthly revenue</text>
+      <text x="104" y="172" fill="#f2f5fb" font-family="Inter,system-ui,sans-serif" font-size="36" font-weight="700">$48.2k</text>
+      <rect x="280" y="148" width="72" height="28" rx="14" fill="#143528"/>
+      <text x="316" y="167" text-anchor="middle" fill="#3dd68c" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="600">+12.4%</text>
+    </svg>

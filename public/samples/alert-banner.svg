@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Feedback · Alert</text>
+      <rect x="64" y="110" width="352" height="56" rx="12" fill="#1a2838" stroke="#2f4d6e"/>
+      <circle cx="96" cy="138" r="10" fill="#5b8cff"/>
+      <text x="96" y="142" text-anchor="middle" fill="#fff" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="700">i</text>
+      <text x="120" y="136" fill="#d7e6ff" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="600">New version available</text>
+      <text x="120" y="156" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="12">Refresh to get the latest features.</text>
+    </svg>

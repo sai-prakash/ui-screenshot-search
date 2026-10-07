@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Table · Simple</text>
+      <rect x="56" y="84" width="368" height="152" rx="10" fill="#0f131a" stroke="#263044"/>
+      <rect x="56" y="84" width="368" height="36" fill="#1a2230"/>
+      <text x="76" y="107" fill="#9aa3b5" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="600">Name</text>
+      <text x="220" y="107" fill="#9aa3b5" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="600">Status</text>
+      <text x="340" y="107" fill="#9aa3b5" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="600">Role</text>
+      <text x="76" y="145" fill="#e6ebf5" font-family="Inter,system-ui,sans-serif" font-size="13">Ada Lovelace</text>
+      <text x="220" y="145" fill="#3dd68c" font-family="Inter,system-ui,sans-serif" font-size="13">Active</text>
+      <text x="340" y="145" fill="#aeb6c8" font-family="Inter,system-ui,sans-serif" font-size="13">Admin</text>
+      <text x="76" y="181" fill="#e6ebf5" font-family="Inter,system-ui,sans-serif" font-size="13">Grace Hopper</text>
+      <text x="220" y="181" fill="#f0b429" font-family="Inter,system-ui,sans-serif" font-size="13">Pending</text>
+      <text x="340" y="181" fill="#aeb6c8" font-family="Inter,system-ui,sans-serif" font-size="13">Editor</text>
+      <text x="76" y="217" fill="#e6ebf5" font-family="Inter,system-ui,sans-serif" font-size="13">Alan Turing</text>
+      <text x="220" y="217" fill="#3dd68c" font-family="Inter,system-ui,sans-serif" font-size="13">Active</text>
+      <text x="340" y="217" fill="#aeb6c8" font-family="Inter,system-ui,sans-serif" font-size="13">Viewer</text>
+    </svg>

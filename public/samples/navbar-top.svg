@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+      <rect width="480" height="280" fill="#0b0d12"/>
+      <rect x="24" y="24" width="432" height="232" rx="16" fill="#12151c" stroke="#1e2430"/>
+      <text x="48" y="64" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Nav · Top bar</text>
+      <rect x="56" y="100" width="368" height="56" rx="12" fill="#161b25" stroke="#263044"/>
+      <circle cx="84" cy="128" r="12" fill="#5b8cff"/>
+      <text x="110" y="133" fill="#f2f5fb" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="600">Acme</text>
+      <text x="200" y="133" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Product</text>
+      <text x="270" y="133" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Docs</text>
+      <text x="320" y="133" fill="#8b93a7" font-family="Inter,system-ui,sans-serif" font-size="13">Pricing</text>
+      <circle cx="392" cy="128" r="14" fill="#2a3550"/>
+      <text x="392" y="133" text-anchor="middle" fill="#9db4ff" font-family="Inter,system-ui,sans-serif" font-size="11" font-weight="600">SP</text>
+    </svg>

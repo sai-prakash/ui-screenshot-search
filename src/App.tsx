@@ -1,0 +1,316 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import './App.css';
+import {
+  MODEL_ID,
+  getDeviceInfo,
+  loadEmbedder,
+  type EmbedderProgress,
+} from './lib/embedder';
+import { SAMPLES } from './lib/samples';
+import {
+  buildIndex,
+  searchByImageBlob,
+  searchByText,
+  type SearchHit,
+} from './lib/search';
+
+type Phase = 'boot' | 'model' | 'index' | 'ready' | 'error';
+
+function formatBytes(n?: number): string {
+  if (!n || n <= 0) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export default function App() {
+  const [phase, setPhase] = useState<Phase>('boot');
+  const [progress, setProgress] = useState<EmbedderProgress | null>(null);
+  const [indexProgress, setIndexProgress] = useState({ done: 0, total: SAMPLES.length, label: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState<SearchHit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [deviceLabel, setDeviceLabel] = useState<string>('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const booted = useRef(false);
+
+  useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+
+    (async () => {
+      try {
+        setPhase('model');
+        const info = await loadEmbedder((p) => setProgress(p));
+        setDeviceLabel(`${info.device} · ${info.dtype}`);
+        setPhase('index');
+        await buildIndex((done, total, label) => {
+          setIndexProgress({ done, total, label });
+        });
+        setPhase('ready');
+        setHits(
+          SAMPLES.map((s) => ({
+            ...s,
+            score: 0,
+            match: 'text' as const,
+          })),
+        );
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+        setPhase('error');
+      }
+    })();
+  }, []);
+
+  const progressPct = useMemo(() => {
+    if (phase === 'model') {
+      return Math.min(100, Math.max(0, progress?.progress ?? 0));
+    }
+    if (phase === 'index') {
+      return (indexProgress.done / Math.max(1, indexProgress.total)) * 100;
+    }
+    return phase === 'ready' ? 100 : 0;
+  }, [phase, progress, indexProgress]);
+
+  const runTextSearch = useCallback(async (value: string) => {
+    const q = value.trim();
+    if (!q) {
+      setImagePreview(null);
+      setHits(
+        SAMPLES.map((s) => ({
+          ...s,
+          score: 0,
+          match: 'text' as const,
+        })),
+      );
+      return;
+    }
+    setSearching(true);
+    try {
+      setImagePreview(null);
+      const results = await searchByText(q, 8);
+      setHits(results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const runImageSearch = useCallback(async (file: Blob) => {
+    setSearching(true);
+    try {
+      const url = URL.createObjectURL(file);
+      setImagePreview(url);
+      setQuery('');
+      const results = await searchByImageBlob(file, 8);
+      setHits(results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (phase !== 'ready') return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            void runImageSearch(file);
+          }
+          break;
+        }
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [phase, runImageSearch]);
+
+  const statusText =
+    phase === 'boot'
+      ? 'Starting…'
+      : phase === 'model'
+        ? `Downloading ${MODEL_ID}`
+        : phase === 'index'
+          ? `Indexing ${indexProgress.label || 'components'} (${indexProgress.done}/${indexProgress.total})`
+          : phase === 'ready'
+            ? 'Ready'
+            : 'Failed to load';
+
+  const showScores = Boolean(hits && hits.some((h) => h.score > 0));
+
+  return (
+    <div className="app">
+      <header className="hero">
+        <div className="hero-top">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-dot" />
+              runs locally in your tab
+            </div>
+            <h1>UI Search</h1>
+            <p className="subtitle">
+              Multimodal design-system search in your browser. Embeddings stay
+              on-device after the first model download.
+            </p>
+          </div>
+          <aside className="privacy">
+            <strong>Privacy</strong>
+            <div>
+              No server embeddings. After the model caches in your browser,
+              search works offline.
+            </div>
+          </aside>
+        </div>
+        <div className="chips">
+          {['React', 'TypeScript', 'Transformers.js', 'WebGPU', 'EmbeddingGemma'].map(
+            (chip) => (
+              <span className="chip" key={chip}>
+                {chip}
+              </span>
+            ),
+          )}
+        </div>
+      </header>
+
+      <section className="panel">
+        <div className="search-row">
+          <input
+            className="search-input"
+            value={query}
+            disabled={phase !== 'ready' || searching}
+            placeholder="Search components — e.g. confirm modal, ghost button, empty state…"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void runTextSearch(query);
+            }}
+          />
+          <div className="actions">
+            <button
+              className="btn btn-primary"
+              disabled={phase !== 'ready' || searching || !query.trim()}
+              onClick={() => void runTextSearch(query)}
+            >
+              {searching ? 'Searching…' : 'Search'}
+            </button>
+            <button
+              className="btn"
+              disabled={phase !== 'ready' || searching}
+              onClick={() => fileRef.current?.click()}
+            >
+              Upload image
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void runImageSearch(file);
+                e.target.value = '';
+              }}
+            />
+          </div>
+        </div>
+        <p className="hint">
+          Tip: paste a screenshot crop with ⌘/Ctrl+V. Model: <code>{MODEL_ID}</code>
+        </p>
+
+        {phase !== 'ready' && phase !== 'error' && (
+          <div className="status">
+            <div className="status-title">
+              <span>{statusText}</span>
+              <span>{Math.round(progressPct)}%</span>
+            </div>
+            <div className="bar">
+              <span style={{ width: `${progressPct}%` }} />
+            </div>
+            <div className="meta">
+              {phase === 'model' && (
+                <>
+                  {progress?.file ? `${progress.file} · ` : ''}
+                  {formatBytes(progress?.loaded)}
+                  {progress?.total ? ` / ${formatBytes(progress.total)}` : ''}
+                </>
+              )}
+              {phase === 'index' &&
+                'Embedding text descriptions and sample screenshots locally…'}
+            </div>
+          </div>
+        )}
+
+        {phase === 'error' && (
+          <div className="status">
+            <div className="status-title">
+              <span style={{ color: 'var(--danger)' }}>Load failed</span>
+            </div>
+            <div className="meta">{error}</div>
+          </div>
+        )}
+
+        {imagePreview && (
+          <div className="preview-query">
+            <img src={imagePreview} alt="Query crop" />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Image query</div>
+              <div className="meta">Matching against indexed component screenshots</div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="results-header">
+        <h2>{showScores ? 'Top matches' : 'Sample library'}</h2>
+        <span>
+          {deviceLabel
+            ? `${SAMPLES.length} components · ${deviceLabel}`
+            : `${SAMPLES.length} components`}
+          {getDeviceInfo() ? '' : ''}
+        </span>
+      </div>
+
+      {hits && hits.length > 0 ? (
+        <div className="grid">
+          {hits.map((hit) => (
+            <article className="card" key={hit.id}>
+              <div className="card-media">
+                <img src={hit.src} alt={hit.label} loading="lazy" />
+              </div>
+              <div className="card-body">
+                <div className="card-top">
+                  <span className="category">{hit.category}</span>
+                  {showScores && (
+                    <span className="score">{(hit.score * 100).toFixed(1)}%</span>
+                  )}
+                </div>
+                <h3 className="card-title">{hit.label}</h3>
+                <p className="card-desc">{hit.description}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty">No results yet. Try a text query or paste an image.</div>
+      )}
+
+      <footer className="footer">
+        <span>
+          Built for portfolio use · Apache-2.0 · embeddings via Transformers.js
+        </span>
+        <a href="https://github.com/sai-prakash/ui-screenshot-search" target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+      </footer>
+    </div>
+  );
+}
