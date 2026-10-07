@@ -4,6 +4,10 @@
 
 Type a query or paste/upload an image crop — EmbeddingGemma 2 (via Transformers.js + WebGPU) embeds locally and ranks a built-in library of UI component screenshots by cosine similarity. After the first model download, the tab works offline. No server-side embeddings.
 
+## Live demo
+
+https://ui-screenshot-search.vercel.app
+
 > **Demo GIF:** drop a short screen recording at `docs/demo.gif` (or record one from the live site) and replace this note with `![UI Search demo](docs/demo.gif)`.
 
 ## Stack
