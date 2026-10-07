@@ -25,5 +25,8 @@
   },
   "description": "Browser-based multimodal design-system screenshot search with EmbeddingGemma 2",
   "license": "Apache-2.0",
-  "author": "Sai Prakash"
+  "author": "Sai Prakash",
+  "engines": {
+    "node": ">=20"
+  }
 }
