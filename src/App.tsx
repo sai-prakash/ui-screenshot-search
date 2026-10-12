@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.css';
 import { Header, LivePanel, PrivacyNote, liveError, pct, useAutoResume, type LiveState } from './components/Chrome';
 import { friendlyError } from './lib/errors';
+import { validateUpload } from './lib/uploads';
 import { MODEL_ID } from './lib/model';
 import { SAMPLES } from './lib/samples';
 import { sampleById, type Hit } from './lib/library';
 
+import examplesData from './data/examples.json';
+
 // Model code (Transformers.js + ONNX Runtime) loads only when you opt in.
 const live = () => import('./lib/search');
-import examplesData from './data/examples.json';
 
 const SEARCH_DEBOUNCE_MS = 320;
 const EXAMPLES = examplesData.examples;
@@ -29,12 +31,14 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [searchErr, setSearchErr] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
   const gen = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const ready = liveState.kind === 'ready';
 
   const pickExample = (i: number) => {
+    ++gen.current;
+    setBusy(false);
+    setSearchErr(null);
     setActive(i);
     setQuery('');
     setView({ source: 'example', label: EXAMPLES[i]!.query, hits: exampleHits(i) });
@@ -44,11 +48,9 @@ export default function App() {
     setLive({ kind: 'loading', progress: null });
     try {
       setLive({ kind: 'loading', progress: null, step: 'Loading the model code…' });
-      const { loadLibrary, loadEmbedder, searchByText } = await live();
+      const { loadLibrary, loadEmbedder } = await live();
       await loadLibrary();
       const info = await loadEmbedder((p) => setLive({ kind: 'loading', progress: p }));
-      setLive({ kind: 'loading', progress: null, step: 'Warming up…' });
-      await searchByText('button');
       setLive({ kind: 'ready', device: info.device === 'webgpu' ? 'GPU' : 'CPU' });
     } catch (err) {
       setLive(liveError(err));
@@ -60,14 +62,15 @@ export default function App() {
     if (!q.trim()) return;
     const g = ++gen.current;
     setBusy(true);
+    setSearchErr(null);
     try {
       const hits = await (await live()).searchByText(q);
       if (g !== gen.current) return;
       setActive(-1);
       setSearchErr(null);
-      startTransition(() => setView({ source: 'live', label: q, hits }));
+      setView({ source: 'live', label: q, hits });
     } catch (err) {
-      setSearchErr(friendlyError(err));
+      if (g === gen.current) setSearchErr(friendlyError(err));
     } finally {
       if (g === gen.current) setBusy(false);
     }
@@ -75,21 +78,27 @@ export default function App() {
 
   useEffect(() => {
     if (!ready || !query.trim()) return;
-    const h = window.setTimeout(() => void runText(query), SEARCH_DEBOUNCE_MS);
+    const scheduledGeneration = gen.current;
+    const h = window.setTimeout(() => {
+      if (scheduledGeneration === gen.current) void runText(query);
+    }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(h);
   }, [query, ready, runText]);
 
   const runImage = useCallback(async (blob: Blob) => {
+    setQuery('');
     const g = ++gen.current;
     setBusy(true);
+    setSearchErr(null);
     try {
+      validateUpload(blob);
       const hits = await (await live()).searchByImage(blob);
       if (g !== gen.current) return;
       setActive(-1);
       setSearchErr(null);
       setView({ source: 'live', label: 'your image', hits });
     } catch (err) {
-      setSearchErr(friendlyError(err));
+      if (g === gen.current) setSearchErr(friendlyError(err));
     } finally {
       if (g === gen.current) setBusy(false);
     }
@@ -133,7 +142,13 @@ export default function App() {
           placeholder={ready ? 'Describe a component, e.g. "tabs for switching views"' : 'Load the model above to search your own words'}
           value={query}
           disabled={!ready}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            ++gen.current;
+            setBusy(false);
+            setSearchErr(null);
+            setQuery(e.target.value);
+            if (!e.target.value.trim()) setView(null);
+          }}
         />
         <button className="btn" disabled={!ready} onClick={() => fileRef.current?.click()}>
           Upload screenshot

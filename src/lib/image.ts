@@ -1,3 +1,4 @@
+import { embeddingDimensions, validateUpload } from './uploads';
 import { RawImage, load_image } from '@huggingface/transformers';
 
 /** True when MIME or URL path indicates SVG (createImageBitmap cannot decode SVG). */
@@ -63,7 +64,8 @@ function drawToCanvas(
  */
 async function rasterizeViaHtmlImage(src: string): Promise<RawImage> {
   const img = await loadHtmlImage(src);
-  const canvas = drawToCanvas(img, img.naturalWidth, img.naturalHeight);
+  const { width, height } = embeddingDimensions(img.naturalWidth, img.naturalHeight);
+  const canvas = drawToCanvas(img, width, height);
   return RawImage.fromCanvas(canvas);
 }
 
@@ -86,12 +88,13 @@ export async function loadImageForEmbedding(
   input: string | Blob,
 ): Promise<RawImage> {
   try {
+    if (typeof input !== 'string') validateUpload(input);
     if (typeof input === 'string') {
       if (isSvgSource(input)) {
         return await rasterizeViaHtmlImage(input);
       }
       try {
-        return await load_image(input);
+        return await downscale(await load_image(input));
       } catch (err) {
         console.warn(
           '[image] load_image failed; falling back to HTMLImageElement path',
@@ -115,7 +118,7 @@ export async function loadImageForEmbedding(
     }
 
     try {
-      return await load_image(input);
+      return await downscale(await load_image(input));
     } catch (err) {
       console.warn(
         '[image] createImageBitmap path failed; falling back to HTMLImageElement',
@@ -134,4 +137,9 @@ export async function loadImageForEmbedding(
       'Cannot decode image for embedding',
     );
   }
+}
+
+async function downscale(image: RawImage): Promise<RawImage> {
+  const { width, height } = embeddingDimensions(image.width, image.height);
+  return width === image.width && height === image.height ? image : image.resize(width, height);
 }

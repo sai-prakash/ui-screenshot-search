@@ -17,6 +17,7 @@ export function friendlyError(err: unknown): string {
   if (/memory|allocation|OOM|Aborted/i.test(msg)) {
     return 'Your browser ran out of memory loading the model. Close a few tabs and try again, or stick with the examples.';
   }
+  if (msg === 'image-too-large') return 'That image is too large. Choose a file up to 10 MB.';
   if (msg === 'empty-image') return 'That image was empty. Paste or upload a PNG, JPEG, WebP or SVG.';
   return "The model couldn't load in this browser. The examples above still work.";
 }

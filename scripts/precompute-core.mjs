@@ -1,15 +1,19 @@
 // Build-time precompute: runs the same model (EmbeddingGemma 2, q8, CPU) in Node.
 // Usage: npm i --no-save sharp && node scripts/precompute.mjs
-import { AutoConfig, AutoModel, AutoProcessor, RawImage } from '@huggingface/transformers';
+import { AutoConfig, AutoModel, AutoProcessor, RawImage, env } from '@huggingface/transformers';
 import sharp from 'sharp';
 import fs from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 
-export const MODEL_ID = 'onnx-community/embeddinggemma-2-ONNX';
 export const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const { MODEL_ID } = await importTs('src/lib/model.ts');
+export { MODEL_ID };
+const { cosineSimilarity } = await importTs('src/lib/scoring.ts');
 
 let proc, model;
 export async function load() {
+  if (process.argv.includes('--offline')) env.allowRemoteModels = false;
   const config = await AutoConfig.from_pretrained(MODEL_ID);
   config.audio_config = null;
   proc = await AutoProcessor.from_pretrained(MODEL_ID);
@@ -26,11 +30,7 @@ export async function embedSvg(publicSrc) {
     .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   return emb(null, new RawImage(new Uint8ClampedArray(data), info.width, info.height, 4));
 }
-export function cos(a, b) {
-  let d = 0, x = 0, y = 0;
-  for (let i = 0; i < a.length; i++) { d += a[i] * b[i]; x += a[i] ** 2; y += b[i] ** 2; }
-  return d / Math.sqrt(x * y);
-}
+export const cos = cosineSimilarity;
 export const round = (v) => v.map((n) => +n.toFixed(5));
 export function meta() {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules/@huggingface/transformers/package.json'), 'utf8'));
@@ -42,15 +42,12 @@ export function write(rel, obj) {
   fs.writeFileSync(p, JSON.stringify(obj));
   console.log('wrote', rel, (fs.statSync(p).size / 1024).toFixed(0) + 'KB');
 }
-// Load a TS data module's exported arrays without a TS toolchain.
+// Transpile pure TS modules with the installed compiler; no regex stripping or temp files.
 export async function importTs(rel) {
-  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8')
-    .replace(/^import type .*$/gm, '')
-    .replace(/export type [\s\S]*?\n};\n/g, '')
-    .replace(/: [A-Za-z]+\[\]( =)/g, '$1')
-    .replace(/\(([a-z]+): [A-Za-z]+\)(: string)?/g, '($1)')
-    .replace(/\(([a-z]+): string\)(: string)?/g, '($1)');
-  const tmp = path.join(ROOT, 'scripts', '.tmp-' + path.basename(rel, '.ts') + '.mjs');
-  fs.writeFileSync(tmp, src);
-  try { return await import(tmp + '?' + Date.now()); } finally { fs.unlinkSync(tmp); }
+  const source = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.ESNext },
+    fileName: rel,
+  });
+  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 }
