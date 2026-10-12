@@ -20,3 +20,45 @@ for (const q of EXAMPLE_QUERIES) {
 }
 write('src/data/examples.json', { ...meta(), examples });
 write('public/library-embeddings.json', { ...meta(), library: library.map((l) => ({ id: l.id, text: round(l.text), image: round(l.image) })) });
+
+// ---- Measured eval (held-out queries in scripts/eval-queries.json) ----
+import fsE from 'node:fs';
+const E = JSON.parse(fsE.readFileSync(new URL('./eval-queries.json', import.meta.url)));
+async function scoreAll(set) {
+  const out = [];
+  for (const x of set) {
+    const e = await embedText(queryText(x.q));
+    const s = library.map((l) => ({ id: l.id, t: cos(e, l.text), i: cos(e, l.image) }));
+    out.push({ ...x, s });
+  }
+  return out;
+}
+const modes = { text: (r) => r.t, image: (r) => r.i, fusion: (r) => Math.max(r.t, r.i * 0.95) };
+function metrics(rows, f, T) {
+  const pos = rows.filter((r) => r.expected), neg = rows.filter((r) => !r.expected);
+  let top1 = 0, top3 = 0, rr = 0, accepted = 0, acceptedCorrect = 0, negRejected = 0;
+  for (const r of rows) {
+    const ranked = [...r.s].sort((a, b) => f(b) - f(a));
+    const best = f(ranked[0]);
+    if (r.expected) {
+      const rank = ranked.findIndex((x) => r.expected.includes(x.id)) + 1;
+      if (rank === 1) top1++; if (rank <= 3) top3++; rr += 1 / rank;
+      if (T !== undefined && best >= T) { accepted++; if (rank === 1) acceptedCorrect++; }
+    } else if (T !== undefined && best < T) negRejected++;
+  }
+  return { n: pos.length, top1: top1 / pos.length, top3: top3 / pos.length, mrr: rr / pos.length,
+    ...(T !== undefined ? { threshold: T, noMatchQueries: neg.length, noMatchCorrectlyFlagged: negRejected, realQueriesShown: accepted, realQueriesWronglyFlagged: pos.length - accepted } : {}) };
+}
+const dev = await scoreAll(E.dev), test = await scoreAll(E.test);
+// Pick the threshold on dev only: maximise correct accept/reject decisions.
+let bestT = 0.6, bestAcc = -1;
+for (let T = 0.5; T <= 0.8; T += 0.005) {
+  let ok = 0;
+  for (const r of dev) { const top = Math.max(...r.s.map(modes.fusion)); ok += r.expected ? (top >= T ? 1 : 0) : (top < T ? 1 : 0); }
+  if (ok > bestAcc) { bestAcc = ok; bestT = +T.toFixed(3); }
+}
+const evalOut = { ...meta(), threshold: bestT, weakBand: 0.04,
+  test: Object.fromEntries(Object.entries(modes).map(([k, f]) => [k, metrics(test, f, k === 'fusion' ? bestT : undefined)])),
+  perQuery: test.map((r) => { const ranked = [...r.s].sort((a, b) => modes.fusion(b) - modes.fusion(a)); return { q: r.q, expected: r.expected, top3: ranked.slice(0, 3).map((x) => [x.id, +modes.fusion(x).toFixed(4)]) }; }) };
+write('src/data/eval.json', evalOut);
+console.log(JSON.stringify(evalOut.test, null, 1));
