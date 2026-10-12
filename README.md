@@ -87,3 +87,8 @@ Suggested 2-line copy for [saiprakash.design](https://saiprakash.design):
 Apache-2.0 (compatible with EmbeddingGemma 2’s Apache-2.0 release).
 
 Sample SVG placeholders in `/public/samples/` are original to this repo.
+
+## Instant mode and CPU fallback (Oct 2026)
+
+- The page opens with real, precomputed example results (`src/data/examples.json`, plus library embeddings in `public/` where used). They were produced by running the same model (q8) in Node with `scripts/precompute.mjs`; rerun it after changing samples: `npm i --no-save sharp && node scripts/precompute.mjs`.
+- The live model is opt-in. The app checks for a real WebGPU adapter first. Without one it goes straight to WASM + q8 and points ONNX Runtime at the plain CPU WASM binary in `public/ort/`, because the WebGPU build bundled with Transformers.js has no CPU kernel for `GatherBlockQuantized`, which every quantized EmbeddingGemma 2 file uses.
