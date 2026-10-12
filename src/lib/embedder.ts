@@ -10,6 +10,9 @@ import {
   type Tensor,
 } from '@huggingface/transformers';
 import { loadImageForEmbedding } from './image';
+import { detectWebGPU, FORCE_WASM_KEY, AUTO_RESUME_KEY, SIMULATE_GPU_FAIL } from './gpu';
+import { GpuFailedError } from './errors';
+export { detectWebGPU };
 
 /** EmbeddingGemma 2 ONNX (multimodal: text + image; audio skipped). */
 export const MODEL_ID = 'onnx-community/embeddinggemma-2-ONNX';
@@ -25,26 +28,11 @@ export type EmbedderProgress = {
   total: number;
 };
 
-const FORCE_WASM_KEY = 'demo.forceWasm';
-
 let model: PreTrainedModel | null = null;
 let processor: Processor | null = null;
 let deviceInfo: DeviceInfo | null = null;
 let loadPromise: Promise<DeviceInfo> | null = null;
 let cpuBinaryConfigured = false;
-
-/** True only when a real WebGPU adapter exists (navigator.gpu alone is not enough). */
-export async function detectWebGPU(): Promise<boolean> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const gpu = (navigator as any).gpu;
-    if (!gpu) return false;
-    const adapter = await gpu.requestAdapter();
-    return Boolean(adapter);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Transformers.js ships the WebGPU build of ONNX Runtime Web. Its WASM binary
@@ -116,8 +104,8 @@ function reset() {
 
 /**
  * Detect WebGPU first. GPU: WebGPU + q4f16. No GPU: WASM + q8 on the CPU
- * binary for every model part. If WebGPU fails mid-load we can't switch the
- * already-initialised runtime, so we ask for a reload into CPU mode.
+ * binary for every model part. If WebGPU fails mid-load the runtime can't be
+ * swapped in place, so the app reloads once into CPU mode and resumes.
  */
 export async function loadEmbedder(
   onProgress?: (p: EmbedderProgress) => void,
@@ -127,13 +115,17 @@ export async function loadEmbedder(
 
   loadPromise = (async () => {
     const forceWasm = sessionStorage.getItem(FORCE_WASM_KEY) === '1';
-    const gpu = !forceWasm && (await detectWebGPU());
+    const gpu = !forceWasm && (SIMULATE_GPU_FAIL || (await detectWebGPU()));
     if (gpu) {
       try {
+        if (SIMULATE_GPU_FAIL) throw new Error('simulated GPU failure');
         return await loadWith('webgpu', 'q4f16', onProgress);
       } catch (err) {
         console.warn('[embedder] WebGPU load failed', err);
+        // ONNX Runtime Web can't swap its WASM binary once initialised, so the
+        // only clean CPU switch is a fresh page: flag CPU mode and auto-resume.
         sessionStorage.setItem(FORCE_WASM_KEY, '1');
+        sessionStorage.setItem(AUTO_RESUME_KEY, '1');
         throw new GpuFailedError();
       }
     }
@@ -146,13 +138,6 @@ export async function loadEmbedder(
   } catch (err) {
     reset();
     throw err;
-  }
-}
-
-/** WebGPU failed after init; a reload will start in CPU mode. */
-export class GpuFailedError extends Error {
-  constructor() {
-    super('gpu-failed');
   }
 }
 
@@ -202,18 +187,3 @@ export function cosineSimilarity(a: ArrayLike<number>, b: ArrayLike<number>): nu
   return denom === 0 ? 0 : dot / denom;
 }
 
-/** Plain-language message for any load/search failure. */
-export function friendlyError(err: unknown): string {
-  if (err instanceof GpuFailedError) {
-    return "Your graphics chip couldn't run the model. Reload and it will use the CPU instead (slower, but it works).";
-  }
-  const msg = err instanceof Error ? err.message : String(err);
-  if (/fetch|network|Failed to load|NetworkError/i.test(msg)) {
-    return 'The model download was interrupted. Check your connection and try again.';
-  }
-  if (/memory|allocation|OOM|Aborted/i.test(msg)) {
-    return "Your browser ran out of memory loading the model. Close a few tabs and try again, or stick with the examples.";
-  }
-  if (msg === 'empty-image') return 'That image was empty. Paste or upload a PNG, JPEG, WebP or SVG.';
-  return "The model couldn't load in this browser. The examples above still work.";
-}

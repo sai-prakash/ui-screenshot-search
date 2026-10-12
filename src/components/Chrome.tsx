@@ -1,5 +1,29 @@
 import { useEffect, useState } from 'react';
-import { detectWebGPU, type EmbedderProgress } from '../lib/embedder';
+import { detectWebGPU, AUTO_RESUME_KEY } from '../lib/gpu';
+import { friendlyError, GpuFailedError } from '../lib/errors';
+
+export type EmbedderProgress = { file?: string; loaded: number; total: number };
+
+/** If the page just reloaded itself into CPU mode, start the live model again automatically. */
+export function useAutoResume(start: () => void) {
+  useEffect(() => {
+    if (sessionStorage.getItem(AUTO_RESUME_KEY) === '1') {
+      sessionStorage.removeItem(AUTO_RESUME_KEY);
+      start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
+/** Map a live-load failure to UI state; a GPU failure reloads once into CPU mode. */
+export function liveError(err: unknown): LiveState {
+  console.error(err);
+  if (err instanceof GpuFailedError) {
+    window.setTimeout(() => location.reload(), 1200);
+    return { kind: 'loading', progress: null, step: friendlyError(err) };
+  }
+  return { kind: 'error', message: friendlyError(err) };
+}
 
 const CASE_STUDY = 'https://saiprakash.design/work/multimodal-design-qa';
 

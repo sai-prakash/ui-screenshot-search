@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import './App.css';
-import { Header, LivePanel, PrivacyNote, pct, type LiveState } from './components/Chrome';
-import { friendlyError, loadEmbedder, MODEL_ID } from './lib/embedder';
+import { Header, LivePanel, PrivacyNote, liveError, pct, useAutoResume, type LiveState } from './components/Chrome';
+import { friendlyError } from './lib/errors';
+import { MODEL_ID } from './lib/model';
 import { SAMPLES } from './lib/samples';
-import { loadLibrary, sampleById, searchByImage, searchByText, type Hit } from './lib/search';
+import { sampleById, type Hit } from './lib/library';
+
+// Model code (Transformers.js + ONNX Runtime) loads only when you opt in.
+const live = () => import('./lib/search');
 import examplesData from './data/examples.json';
 
 const SEARCH_DEBOUNCE_MS = 320;
@@ -19,7 +23,7 @@ function exampleHits(i: number): Hit[] {
 }
 
 export default function App() {
-  const [live, setLive] = useState<LiveState>({ kind: 'idle' });
+  const [liveState, setLive] = useState<LiveState>({ kind: 'idle' });
   const [active, setActive] = useState(0);
   const [view, setView] = useState<View>({ source: 'example', label: EXAMPLES[0]!.query, hits: exampleHits(0) });
   const [query, setQuery] = useState('');
@@ -28,7 +32,7 @@ export default function App() {
   const [, startTransition] = useTransition();
   const gen = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
-  const ready = live.kind === 'ready';
+  const ready = liveState.kind === 'ready';
 
   const pickExample = (i: number) => {
     setActive(i);
@@ -39,23 +43,25 @@ export default function App() {
   const startLive = async () => {
     setLive({ kind: 'loading', progress: null });
     try {
+      setLive({ kind: 'loading', progress: null, step: 'Loading the model code…' });
+      const { loadLibrary, loadEmbedder, searchByText } = await live();
       await loadLibrary();
       const info = await loadEmbedder((p) => setLive({ kind: 'loading', progress: p }));
       setLive({ kind: 'loading', progress: null, step: 'Warming up…' });
       await searchByText('button');
       setLive({ kind: 'ready', device: info.device === 'webgpu' ? 'GPU' : 'CPU' });
     } catch (err) {
-      console.error(err);
-      setLive({ kind: 'error', message: friendlyError(err) });
+      setLive(liveError(err));
     }
   };
+  useAutoResume(() => void startLive());
 
   const runText = useCallback(async (q: string) => {
     if (!q.trim()) return;
     const g = ++gen.current;
     setBusy(true);
     try {
-      const hits = await searchByText(q);
+      const hits = await (await live()).searchByText(q);
       if (g !== gen.current) return;
       setActive(-1);
       setSearchErr(null);
@@ -77,7 +83,7 @@ export default function App() {
     const g = ++gen.current;
     setBusy(true);
     try {
-      const hits = await searchByImage(blob);
+      const hits = await (await live()).searchByImage(blob);
       if (g !== gen.current) return;
       setActive(-1);
       setSearchErr(null);
@@ -119,7 +125,7 @@ export default function App() {
         ))}
       </div>
 
-      <LivePanel state={live} onStart={startLive} readyText="Type your own search or paste a screenshot." />
+      <LivePanel state={liveState} onStart={startLive} readyText="Type your own search or paste a screenshot." />
       <div className="row">
         <input
           type="search"

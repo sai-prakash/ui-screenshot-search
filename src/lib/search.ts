@@ -1,7 +1,8 @@
 import { cosineSimilarity, embedImageBlob, embedText } from './embedder';
-import { SAMPLES, queryText, type SampleComponent } from './samples';
+import { queryText } from './samples';
+import { byId, type Hit } from './library';
+export { loadEmbedder } from './embedder';
 
-export type Hit = { item: SampleComponent; score: number };
 
 type LibEntry = { id: string; text: number[]; image: number[] };
 let library: LibEntry[] | null = null;
@@ -17,8 +18,6 @@ export async function loadLibrary(): Promise<void> {
   library = (await res.json()).library as LibEntry[];
 }
 
-const byId = new Map(SAMPLES.map((s) => [s.id, s]));
-export const sampleById = (id: string) => byId.get(id)!;
 
 function rank(score: (e: LibEntry) => number, topK: number): Hit[] {
   if (!library) return [];
