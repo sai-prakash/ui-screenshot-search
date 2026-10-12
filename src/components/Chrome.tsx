@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { detectWebGPU, AUTO_RESUME_KEY } from '../lib/gpu';
 import { friendlyError, GpuFailedError } from '../lib/errors';
+import { matchStrength } from '../lib/matchStrength';
+import { evalSummary, STRONG_FROM, WEAK_FROM } from '../lib/evalSummary';
 
 export type EmbedderProgress = { file?: string; loaded: number; total: number };
 
@@ -120,6 +122,43 @@ export function LivePanel(props: {
   );
 }
 
-export function pct(n: number) {
-  return `${(n * 100).toFixed(1)}%`;
+const STRENGTH_LABEL = { strong: 'Strong', weak: 'Weak', none: 'No match' } as const;
+
+/** Per-result label. `calibrated` is false for image searches: the threshold was tuned on text queries. */
+export function ResultScore(props: { score: number; calibrated: boolean }) {
+  const strength = matchStrength(props.score);
+  return (
+    <div className="result-score">
+      {props.calibrated && <span className={`strength ${strength}`}>{STRENGTH_LABEL[strength]}</span>}
+      <span
+        className="similarity"
+        title="Cosine similarity between your query and this component. Higher is closer; it is not a probability."
+      >
+        similarity {props.score.toFixed(2)}
+      </span>
+    </div>
+  );
+}
+
+export function EvalNote(props: { components: number }) {
+  const s = evalSummary();
+  return (
+    <section className="eval-note" aria-labelledby="eval-title">
+      <h2 id="eval-title">How well it works</h2>
+      <p>
+        On {s.n} held-out test queries (written before running the model), the right component came
+        first {s.fusion.top1} of {s.n} times and was in the top 3 {s.fusion.top3} of {s.n} times.
+        Matching on the text descriptions alone (no images) scored {s.text.top1} and {s.text.top3}.
+        Of {s.noMatchQueries} test queries that have no matching component, {s.noMatchFlagged} were
+        correctly flagged as no strong match;{' '}
+        {s.realWronglyFlagged === 0 ? 'no' : s.realWronglyFlagged} real queries were wrongly flagged.
+      </p>
+      <p className="muted">
+        Measured on {props.components} synthetic sample components, so treat it as a sanity check, not a
+        benchmark. Labels: Strong from similarity {STRONG_FROM.toFixed(2)}, Weak from{' '}
+        {WEAK_FROM.toFixed(2)}, No match below that. The cutoff was picked on a separate set of dev
+        queries and only applies to text searches.
+      </p>
+    </section>
+  );
 }

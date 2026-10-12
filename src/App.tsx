@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.css';
-import { Header, LivePanel, PrivacyNote, liveError, pct, useAutoResume, type LiveState } from './components/Chrome';
+import { EvalNote, Header, LivePanel, PrivacyNote, ResultScore, liveError, useAutoResume, type LiveState } from './components/Chrome';
 import { friendlyError } from './lib/errors';
+import { matchStrength } from './lib/matchStrength';
 import { validateUpload } from './lib/uploads';
 import { MODEL_ID } from './lib/model';
 import { SAMPLES } from './lib/samples';
@@ -15,10 +16,7 @@ const live = () => import('./lib/search');
 const SEARCH_DEBOUNCE_MS = 320;
 const EXAMPLES = examplesData.examples;
 
-type View =
-  | { source: 'example'; label: string; hits: Hit[] }
-  | { source: 'live'; label: string; hits: Hit[] }
-  | null;
+type View = { source: 'example' | 'live'; input: 'text' | 'image'; label: string; hits: Hit[] } | null;
 
 function exampleHits(i: number): Hit[] {
   return EXAMPLES[i]!.results.map((r) => ({ item: sampleById(r.id), score: r.score }));
@@ -27,7 +25,7 @@ function exampleHits(i: number): Hit[] {
 export default function App() {
   const [liveState, setLive] = useState<LiveState>({ kind: 'idle' });
   const [active, setActive] = useState(0);
-  const [view, setView] = useState<View>({ source: 'example', label: EXAMPLES[0]!.query, hits: exampleHits(0) });
+  const [view, setView] = useState<View>({ source: 'example', input: 'text', label: EXAMPLES[0]!.query, hits: exampleHits(0) });
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [searchErr, setSearchErr] = useState<string | null>(null);
@@ -41,7 +39,7 @@ export default function App() {
     setSearchErr(null);
     setActive(i);
     setQuery('');
-    setView({ source: 'example', label: EXAMPLES[i]!.query, hits: exampleHits(i) });
+    setView({ source: 'example', input: 'text', label: EXAMPLES[i]!.query, hits: exampleHits(i) });
   };
 
   const startLive = async () => {
@@ -68,7 +66,7 @@ export default function App() {
       if (g !== gen.current) return;
       setActive(-1);
       setSearchErr(null);
-      setView({ source: 'live', label: q, hits });
+      setView({ source: 'live', input: 'text', label: q, hits });
     } catch (err) {
       if (g === gen.current) setSearchErr(friendlyError(err));
     } finally {
@@ -96,7 +94,7 @@ export default function App() {
       if (g !== gen.current) return;
       setActive(-1);
       setSearchErr(null);
-      setView({ source: 'live', label: 'your image', hits });
+      setView({ source: 'live', input: 'image', label: 'your image', hits });
     } catch (err) {
       if (g === gen.current) setSearchErr(friendlyError(err));
     } finally {
@@ -114,7 +112,11 @@ export default function App() {
     return () => window.removeEventListener('paste', onPaste);
   }, [ready, runImage]);
 
-  const topIds = new Set(view?.hits.slice(0, 3).map((h) => h.item.id));
+  // The threshold was tuned on text queries, so image searches get similarity only.
+  const calibrated = view?.input === 'text';
+  const topScore = view?.hits[0]?.score ?? -Infinity;
+  const noStrongMatch = calibrated && matchStrength(topScore) !== 'strong';
+  const topIds = new Set(noStrongMatch ? [] : view?.hits.slice(0, 3).map((h) => h.item.id));
 
   return (
     <div className="page">
@@ -139,6 +141,7 @@ export default function App() {
         <input
           type="search"
           data-testid="query"
+          aria-label="Describe a component"
           placeholder={ready ? 'Describe a component, e.g. "tabs for switching views"' : 'Load the model above to search your own words'}
           value={query}
           disabled={!ready}
@@ -168,11 +171,17 @@ export default function App() {
       {searchErr && <p className="err small" role="alert">{searchErr}</p>}
 
       {view && (
-        <>
+        <section aria-live="polite">
           <h2 className="section-title">
-            Top matches for "{view.label}"{busy ? ' · searching…' : ''}
+            {noStrongMatch ? 'Closest items' : 'Top matches'} for "{view.label}"{busy ? ' · searching…' : ''}
           </h2>
-          <div className="results" data-testid="results">
+          {noStrongMatch && (
+            <p className="no-match" data-testid="no-match">
+              <strong>No strong match.</strong> Nothing in this library fits "{view.label}" well. Here are
+              the closest items anyway, in case one is still useful.
+            </p>
+          )}
+          <div className={`results${noStrongMatch ? ' faint' : ''}`} data-testid="results">
             {view.hits.slice(0, 3).map((h) => (
               <div className="result" key={h.item.id}>
                 <img src={h.item.src} alt="" />
@@ -180,17 +189,18 @@ export default function App() {
                   <h3>{h.item.label}</h3>
                   <p>{h.item.description}</p>
                 </div>
-                <span className="score">{pct(h.score)}</span>
+                <ResultScore score={h.score} calibrated={calibrated} />
               </div>
             ))}
           </div>
           <p className="note">
             {view.source === 'example'
-              ? 'Precomputed by running the model on this library at build time. Real results, including the misses: there is no date picker in this library, so that query has no right answer.'
-              : 'Computed just now in your browser.'}{' '}
-            Score is cosine similarity between your query and each component.
+              ? 'Precomputed by running the same model on this library at build time. One example has no right answer on purpose: there is no date picker here, so "pick a date range" is flagged as no strong match.'
+              : 'Computed just now in your browser.'}
+            {view.input === 'image' &&
+              ' Strong / Weak labels are tuned for text searches, so image results show similarity only.'}
           </p>
-        </>
+        </section>
       )}
 
       <h2 className="section-title">The library ({SAMPLES.length} components)</h2>
@@ -203,6 +213,8 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      <EvalNote components={SAMPLES.length} />
 
       <footer>
         Model: {MODEL_ID} via Transformers.js. Apache-2.0.

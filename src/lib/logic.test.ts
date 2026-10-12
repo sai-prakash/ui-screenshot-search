@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { cosineSimilarity, fusionScore, rankByScore } from './scoring';
 import { metrics, chooseThreshold, type EvalRow } from './metrics';
 import { matchStrength } from './matchStrength';
+import { evalSummary } from './evalSummary';
 import evaluation from '../data/eval.json';
+import examples from '../data/examples.json';
 import { embeddingDimensions, MAX_UPLOAD_BYTES, validateUpload } from './uploads';
 
 const row = (expected: string[] | null, scores: [string, number][]): EvalRow => ({
@@ -55,6 +57,19 @@ describe('calibrated match strength', () => {
     expect(matchStrength(evaluation.threshold - evaluation.weakBand)).toBe('weak');
     expect(matchStrength(evaluation.threshold - evaluation.weakBand - Number.EPSILON)).toBe('none');
     expect(matchStrength(NaN)).toBe('none');
+  });
+  it('flags the date-range example, which the UI copy describes as having no right answer', () => {
+    const top = (q: string) => examples.examples.find((e) => e.query === q)!.results[0]!.score;
+    expect(matchStrength(top('pick a date range'))).not.toBe('strong');
+    expect(examples.examples.filter((e) => e.query !== 'pick a date range')
+      .every((e) => matchStrength(e.results[0]!.score) === 'strong')).toBe(true);
+  });
+  it('summarizes held-out results as whole query counts', () => {
+    const s = evalSummary();
+    expect(s.n).toBe(evaluation.test.fusion.n);
+    expect(s.fusion.top1 / s.n).toBeCloseTo(evaluation.test.fusion.top1);
+    expect(s.text.top3 / s.n).toBeCloseTo(evaluation.test.text.top3);
+    expect(s.noMatchFlagged).toBeLessThanOrEqual(s.noMatchQueries);
   });
 });
 
