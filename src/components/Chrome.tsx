@@ -1,186 +1,177 @@
-import { useEffect, useState } from 'react';
-import { detectWebGPU, AUTO_RESUME_KEY } from '../lib/gpu';
-import { friendlyError, GpuFailedError } from '../lib/errors';
-import { matchStrength } from '../lib/matchStrength';
-import systemEval from '../data/system-eval.json';
 import { evalSummary, STRONG_FROM, WEAK_FROM } from '../lib/evalSummary';
-
-export type EmbedderProgress = { file?: string; loaded: number; total: number };
-
-/** If the page just reloaded itself into CPU mode, start the live model again automatically. */
-export function useAutoResume(start: () => void) {
-  useEffect(() => {
-    if (sessionStorage.getItem(AUTO_RESUME_KEY) === '1') {
-      sessionStorage.removeItem(AUTO_RESUME_KEY);
-      start();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-}
-
-/** Map a live-load failure to UI state; a GPU failure reloads once into CPU mode. */
-export function liveError(err: unknown): LiveState {
-  console.error(err);
-  if (err instanceof GpuFailedError) {
-    window.setTimeout(() => location.reload(), 1200);
-    return { kind: 'loading', progress: null, step: friendlyError(err) };
-  }
-  return { kind: 'error', message: friendlyError(err) };
-}
+import { systemEvalSummary } from '../lib/systems';
+import { MODEL_ID } from '../lib/model';
+import { modelSize, progressPct, progressText, type LiveState } from './live';
 
 const CASE_STUDY = 'https://saiprakash.design/work/multimodal-design-qa';
+const REPO = 'https://github.com/sai-prakash/ui-screenshot-search';
 
-export function Header(props: { title: string; line: string; repo: string }) {
+export function TopBar(props: { live: LiveState }) {
+  const s = props.live;
   return (
-    <header className="hdr">
-      <div>
-        <h1>{props.title}</h1>
-        <p className="lede">{props.line}</p>
+    <header className="topbar">
+      <a className="wordmark" href="/" aria-label="UI Search home">
+        <span className="wordmark-dot" aria-hidden="true" />UI Search
+      </a>
+      <div className="topbar-right">
+        {s.kind === 'ready' && <span className="status-pill"><span className="dot ok" aria-hidden="true" />Model on {s.device}</span>}
+        <nav className="topbar-links" aria-label="Project">
+          <a href={CASE_STUDY}>Case study</a>
+          <a href={REPO}>GitHub</a>
+        </nav>
       </div>
-      <nav className="hdr-links">
-        <a href={CASE_STUDY}>Case study</a>
-        <a href={`https://github.com/sai-prakash/${props.repo}`}>GitHub</a>
-      </nav>
     </header>
   );
 }
 
-export function PrivacyNote() {
+function Progress(props: { state: Extract<LiveState, { kind: 'loading' }> }) {
   return (
-    <p className="privacy">
-      <strong>Privacy:</strong> nothing you type or upload leaves your browser. The examples are
-      precomputed; the live model runs on your device and there is no server.
-    </p>
+    <div className="progress">
+      <p>{progressText(props.state)}</p>
+      <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-label="Model download" aria-valuenow={props.state.progress?.total ? Math.round(progressPct(props.state)) : undefined}>
+        <span style={{ transform: `scaleX(${progressPct(props.state) / 100})` }} />
+      </div>
+    </div>
   );
 }
 
-// Measured transfer sizes for model files (text model + vision encoder + tokenizer), audio skipped.
-const SIZE_CPU = 'about 560 MB';
-const SIZE_GPU = 'about 290 MB';
-
-export type LiveState =
-  | { kind: 'idle' }
-  | { kind: 'loading'; progress: EmbedderProgress | null; step?: string }
-  | { kind: 'ready'; device: string }
-  | { kind: 'error'; message: string };
-
-export function LivePanel(props: {
-  state: LiveState;
-  onStart: () => void;
-  readyText: string;
-}) {
-  const [gpu, setGpu] = useState<boolean | null>(null);
-  useEffect(() => {
-    void detectWebGPU().then(setGpu);
-  }, []);
-  const size = gpu ? SIZE_GPU : SIZE_CPU;
+/** The opt-in strip: examples are precomputed; the model only downloads when you ask. */
+export function LiveStrip(props: { state: LiveState; gpu: boolean | null; onStart: () => void }) {
   const s = props.state;
   return (
-    <section className="live" aria-live="polite">
+    <section className={`live live-${s.kind}`} aria-live="polite">
       {s.kind === 'idle' && (
         <>
-          <button className="btn primary" onClick={props.onStart} data-testid="run-live">
-            Run the model in your browser ({size}, one-time)
-          </button>
-          <p className="muted small">
-            {gpu === false
-              ? "No GPU found, so it will run on your CPU. It's slower but it works."
-              : 'Uses your GPU if available. Cached by your browser for next time.'}
+          <p className="live-copy">
+            <span className="live-title">Examples are precomputed. No model download until you opt in.</span>
+            <span className="muted">
+              {props.gpu === false
+                ? "No GPU found, so it will run on your CPU. It's slower but it works."
+                : 'Uses your GPU if available. Cached by your browser for next time.'}
+            </span>
           </p>
+          <button className="btn primary" onClick={props.onStart} data-testid="run-live">
+            Run the model in your browser ({modelSize(props.gpu)}, one-time)
+          </button>
         </>
       )}
-      {s.kind === 'loading' && (
-        <div>
-          <p>
-            {s.step ??
-              (s.progress && s.progress.total
-                ? `Downloading the model… ${Math.round((s.progress.loaded / 1e6))} of ${Math.round(s.progress.total / 1e6)} MB`
-                : 'Starting the model…')}
-          </p>
-          <div className="bar">
-            <span
-              style={{
-                width: `${s.progress && s.progress.total ? (100 * s.progress.loaded) / s.progress.total : 3}%`,
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {s.kind === 'loading' && <Progress state={s} />}
       {s.kind === 'ready' && (
-        <p className="ok" data-testid="live-ready">
-          Model running in your browser ({s.device}). {props.readyText}
+        <p className="live-copy ok" data-testid="live-ready">
+          <span className="live-title"><span className="dot ok" aria-hidden="true" /> Model running in your browser ({s.device}). Type your own search or paste a screenshot.</span>
         </p>
       )}
       {s.kind === 'error' && (
         <div className="err" role="alert">
           <p>{s.message}</p>
-          <button className="btn" onClick={() => location.reload()}>
-            Reload and try again
-          </button>
+          <button className="btn" onClick={() => location.reload()}>Reload and try again</button>
         </div>
       )}
     </section>
   );
 }
 
-const STRENGTH_LABEL = { strong: 'Strong', weak: 'Weak', none: 'No match' } as const;
-
-/** Per-result label. `calibrated` is false for image searches: the threshold was tuned on text queries. */
-export function ResultScore(props: { score: number; calibrated: boolean }) {
-  const strength = matchStrength(props.score);
+/** Shown in the results area when you type or paste before the model is loaded. */
+export function ModelPrompt(props: { state: LiveState; gpu: boolean | null; onStart: () => void; input: 'text' | 'image' }) {
+  const s = props.state;
   return (
-    <div className="result-score">
-      {props.calibrated && <span className={`strength ${strength}`}>{STRENGTH_LABEL[strength]}</span>}
-      <span
-        className="similarity"
-        title="Cosine similarity between your query and this component. Higher is closer; it is not a probability."
-      >
-        similarity {props.score.toFixed(2)}
-      </span>
+    <div className="prompt" data-testid="needs-model">
+      <h3>{props.input === 'image' ? 'Screenshot search' : 'Live search'} needs the in-browser model</h3>
+      {s.kind === 'loading' ? (
+        <>
+          <p className="muted">Your search will run as soon as it's ready.</p>
+          <Progress state={s} />
+        </>
+      ) : s.kind === 'error' ? (
+        <p className="err-text">{s.message}</p>
+      ) : (
+        <>
+          <p className="muted">
+            It runs on your device, so nothing you type leaves the browser. Or pick one of the precomputed examples above.
+          </p>
+          <button className="btn primary" onClick={props.onStart}>
+            Run the model in your browser ({modelSize(props.gpu)}, one-time)
+          </button>
+        </>
+      )}
     </div>
   );
 }
 
-export function EvalNote(props: { components: number }) {
-  const s = evalSummary();
+export function HowItWorks() {
   return (
-    <section className="eval-note" aria-labelledby="eval-title">
-      <h2 id="eval-title">How well it works</h2>
-      <p>
-        On {s.n} held-out test queries (written before running the model), the right component came
-        first {s.fusion.top1} of {s.n} times and was in the top 3 {s.fusion.top3} of {s.n} times.
-        Matching on the text descriptions alone (no images) scored {s.text.top1} and {s.text.top3}.
-        Of {s.noMatchQueries} test queries that have no matching component, {s.noMatchFlagged} were
-        correctly flagged as no strong match;{' '}
-        {s.realWronglyFlagged === 0 ? 'no' : s.realWronglyFlagged} real queries were wrongly flagged.
-      </p>
-      <p className="muted">
-        Measured on {props.components} synthetic sample components, so treat it as a sanity check, not a
-        benchmark. Labels: Strong from similarity {STRONG_FROM.toFixed(2)}, Weak from{' '}
-        {WEAK_FROM.toFixed(2)}, No match below that. The cutoff was picked on a separate set of dev
-        queries and only applies to text searches.
+    <section className="info" aria-labelledby="how-title">
+      <h2 id="how-title">How it works</h2>
+      <ol className="steps">
+        <li><span>1</span>Every screenshot and its text label were embedded ahead of time with EmbeddingGemma 2.</li>
+        <li><span>2</span>Your words or screenshot are embedded on your device by the same model.</li>
+        <li><span>3</span>Results are ranked by similarity, and a cutoff flags when nothing really fits.</li>
+      </ol>
+    </section>
+  );
+}
+
+function Stat(props: { value: string; label: string }) {
+  return (
+    <div className="stat">
+      <span className="stat-value">{props.value}</span>
+      <span className="stat-label">{props.label}</span>
+    </div>
+  );
+}
+
+export function EvalSection(props: { system: string; systemName: string; components: number }) {
+  if (props.system === 'sample') {
+    const s = evalSummary();
+    return (
+      <section className="info" aria-labelledby="eval-title">
+        <h2 id="eval-title">How well it works</h2>
+        <div className="stats">
+          <Stat value={`${s.fusion.top1} of ${s.n}`} label="right component ranked first" />
+          <Stat value={`${s.fusion.top3} of ${s.n}`} label="in the top 3" />
+          <Stat value={`${s.noMatchFlagged} of ${s.noMatchQueries}`} label="no-match queries flagged" />
+        </div>
+        <p className="muted small">
+          {s.n} held-out test queries, written before running the model. Text descriptions alone: {s.text.top1} first,{' '}
+          {s.text.top3} in the top 3. {s.realWronglyFlagged === 0 ? 'No' : s.realWronglyFlagged} real queries were wrongly
+          flagged. Measured on {props.components} synthetic sample components, so it's a sanity check, not a benchmark.
+          Strong from similarity {STRONG_FROM.toFixed(2)}, Weak from {WEAK_FROM.toFixed(2)}, tuned on separate dev queries
+          for text searches.
+        </p>
+      </section>
+    );
+  }
+  const r = systemEvalSummary(props.system);
+  if (!r) return null;
+  const f = r.fusion;
+  return (
+    <section className="info" aria-labelledby="eval-title">
+      <h2 id="eval-title">How well it works on {props.systemName}</h2>
+      <div className="stats">
+        <Stat value={`${f.top1} of ${f.n}`} label="right component ranked first" />
+        <Stat value={`${f.top3} of ${f.n}`} label="in the top 3" />
+        {r.noneN !== undefined && r.noneFlagged !== undefined && (
+          <Stat value={`${r.noneFlagged} of ${r.noneN}`} label="no-match queries flagged" />
+        )}
+      </div>
+      <p className="muted small">
+        {f.n} held-out plain-language queries.
+        {r.text && ` Text only: ${r.text.top1} first, ${r.text.top3} in the top 3.`}
+        {r.image && ` Screenshot only: ${r.image.top1} first, ${r.image.top3} in the top 3.`}
+        {r.realFlagged !== undefined && ` ${r.realFlagged === 0 ? 'No' : r.realFlagged} real queries were wrongly flagged.`}
+        {r.stories !== undefined && r.components !== undefined && ` ${r.stories} stories across ${r.components} components.`}
+        {' '}A small hand-written query set, so read it as a sanity check, not a benchmark.
+        {r.cutoff !== undefined && ` Good match from similarity ${r.cutoff.toFixed(2)}.`}
       </p>
     </section>
   );
 }
 
-type SysModes = Record<'text' | 'image' | 'fusion', { top1: number; top3: number; n: number }>;
-export function SystemEvalNote(props: { id: string }) {
-  const r = (systemEval.systems as Record<string, { stories: number; components: number; modes: SysModes }>)[props.id];
-  if (!r) return null;
-  const f = r.modes.fusion;
+export function Footer() {
   return (
-    <section className="eval-note" aria-labelledby="eval-title">
-      <h2 id="eval-title">How well it works on this system</h2>
-      <p>
-        On {f.n} plain-language queries written before indexing, a story from the right component came first{' '}
-        {f.top1} of {f.n} times and was in the top 3 {f.top3} of {f.n} times. Text only: {r.modes.text.top1} and{' '}
-        {r.modes.text.top3}. Screenshot only: {r.modes.image.top1} and {r.modes.image.top3}.
-      </p>
-      <p className="muted">
-        {r.stories} stories across {r.components} components. A small hand-written query set, so read it as a
-        sanity check, not a benchmark. Text matching sees the Storybook title and story name.
-      </p>
-    </section>
+    <footer className="footer">
+      Model: {MODEL_ID} via Transformers.js. Apache-2.0. Carbon screenshots © IBM (Apache-2.0), Primer screenshots ©
+      GitHub (MIT). Not affiliated with IBM or GitHub.
+    </footer>
   );
 }

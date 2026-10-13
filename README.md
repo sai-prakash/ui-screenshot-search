@@ -49,21 +49,34 @@ The Weak band (0.04 below the cutoff) is a display choice, not a measured interv
 
 ## Real design systems: IBM Carbon and GitHub Primer
 
-A picker at the top switches between the 19-item **Sample**, **IBM Carbon** and **GitHub Primer**. The real systems were indexed from their public Storybooks with `scripts/index-storybook.mjs`, which works on any public Storybook (v7+ `index.json` or v6 `stories.json`).
+Tabs at the top switch between the 19-item **Sample**, **IBM Carbon** and **GitHub Primer**. The real systems were indexed from their public Storybooks with `scripts/index-storybook.mjs`, which works on any public Storybook (v7+ `index.json` or v6 `stories.json`).
 
-| System | Storybook | Candidates (docs skipped) | Picked (cap 400, max 6 per component) | Kept after dedupe | Components |
+| System | Storybook | Candidates | Picked (max 6 per component) | Kept after dedupe | Components | Overlays captured open | Non-visual excluded |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| IBM Carbon | https://react.carbondesignsystem.com | 483 | 347 | 311 | 88 | 37 | 6 |
+| GitHub Primer | https://primer.style/react/storybook | 776 | 307 | 264 | 58 | 3 | 31 |
+
+### How well it works (fresh held-out queries)
+
+`node scripts/eval-systems.mjs carbon primer` writes `src/data/system-eval.json`.
+
+- **Dev set** (`scripts/system-eval-queries.json`, the original 22 queries per system, plus 6 no-match queries per system in `scripts/system-eval-dev-none.json`) is used **only** to pick each system's no-match cutoff (Youden's J on the top fusion score).
+- **Test set** (`scripts/system-eval-heldout.json`): 22 new answerable queries + 6 no-match queries per system, written and committed (9add02a) **before** the indexing fixes were re-run. Nothing was tuned on it.
+
+Held-out test, fusion scoring, before vs after the indexing fixes (the "before" row is the previous index scored on the same held-out queries):
+
+| System | Index | Top-1 | Top-3 | No-match queries flagged | Real queries wrongly flagged |
 | --- | --- | --- | --- | --- | --- |
-| IBM Carbon | https://react.carbondesignsystem.com | 489 | 400 | 359 (40 duplicate renders, 1 blank) | 80 |
-| GitHub Primer | https://primer.style/react/storybook | 806 | 400 | 333 (67 duplicate renders) | 64 |
+| IBM Carbon | before | 13 / 22 | 18 / 22 | 6 / 6 | 3 / 22 |
+| IBM Carbon | after | 16 / 22 | 18 / 22 | 5 / 6 | 2 / 22 |
+| GitHub Primer | before | 11 / 22 | 16 / 22 | 4 / 6 | 1 / 22 |
+| GitHub Primer | after | 14 / 22 | 17 / 22 | 2 / 6 | 0 / 22 |
 
-Measured with `node scripts/eval-systems.mjs carbon primer` (writes `src/data/system-eval.json`). 22 plain-language queries per system, in `scripts/system-eval-queries.json`, written before the indexes were built. A hit counts when the story's component (from its Storybook title) is one of the expected ones.
+Cutoffs (calibrated on dev): Carbon 0.6793, Primer 0.6497. In the UI a result at or above the cutoff is labelled "Good match", up to 0.03 below it "Weak match" (a display band, not measured), lower "Unlikely"; if the top result is below the cutoff the page says nothing clearly matches.
 
-| System | Fusion top-1 | Fusion top-3 | Text-only top-1 / top-3 | Image-only top-1 / top-3 |
-| --- | --- | --- | --- | --- |
-| IBM Carbon | 13 / 22 | 13 / 22 | 13 / 13 | 13 / 15 |
-| GitHub Primer | 11 / 22 | 15 / 22 | 10 / 14 | 8 / 14 |
+What changed in the index: component names come from the first non-grouping title segment (so Carbon "Fluid Components/FluidDropdown" is `FluidDropdown`, Primer "Private/Components/Overlay" is `Overlay`); React hooks (`use*`, `Hooks/…`) and providers/id helpers are excluded; for menus, tooltips, popovers, dropdowns and comboboxes the indexer prefers stories named open/expanded, then tries `args=open:!true`, then hovers/clicks the first trigger, and keeps the open render; story text now includes the humanized component name.
 
-These are much weaker than the sample-library numbers, and that is the honest picture: real libraries have hundreds of near-identical stories, story titles are terse ("Default", "Playground"), and generic queries like "main call to action" land on notifications and dialogs that contain buttons. The Strong/Weak cutoff was tuned on the sample, so it is not applied here; these systems show raw similarity. Treat 22 queries as a sanity check, not a benchmark.
+Caveats: 22 + 6 queries per system is a sanity check, not a benchmark; one query moves top-1 by 4.5 points. Part of the Carbon gain is that queries for fluid inputs can now be credited to `FluidX` components, which the old naming hid. Primer no-match detection on held-out queries is weak (2 of 6). The Primer open-state capture only worked for 3 overlays (its overlays mostly need app state that the default story doesn't expose).
 
 ### Index any public Storybook
 
@@ -93,13 +106,12 @@ Asset size: Carbon 3.0 MB (2.2 MB thumbnails, 0.76 MB embeddings, 0.15 MB manife
 
 ### Known gaps in the indexing
 
-- Category is the second Storybook title segment, so a few groups are mislabelled (Carbon "Fluid Components" holds FluidSlider and friends; Primer has a "Components" bucket). That costs at least one Carbon slider query.
-- Primer hooks (`useAnchoredPosition` etc.) were indexed even though they're not visual components.
-- Screenshots are of the default viewport only; overlays that need a click (menus, tooltips) often render closed.
+- Open-state capture is heuristic; most Primer overlays still render closed.
+- Generic queries ("main call to action") still land on composite stories that contain buttons.
 
 ## Privacy
 
-What you type or upload is embedded on your device and never sent anywhere. The page does make normal network requests: model files from Hugging Face (only after you opt in), the library embeddings file from this site, and the Inter font from Google Fonts.
+What you type or upload is embedded on your device and never sent anywhere. The page does make normal network requests: model files from Hugging Face (only after you opt in), and the library embeddings and screenshots from this site. No web fonts or third-party analytics are loaded.
 
 ## Run locally
 

@@ -15,17 +15,29 @@ export async function embedFile(id) {
   const dir = path.join(ROOT, 'public/systems', id);
   const { items } = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
   await load();
+  // Reuse an image vector when the thumbnail hasn't changed since the last embed (mtime check).
+  const prevPath = path.join(dir, 'embeddings.json');
+  const prev = fs.existsSync(prevPath) ? JSON.parse(fs.readFileSync(prevPath, 'utf8')) : null;
+  const prevT = prev ? fs.statSync(prevPath).mtimeMs : 0;
+  const prevImg = new Map((prev?.library ?? []).map((e) => [e.id, e.image]));
+  let reused = 0;
   const out = [];
   const t0 = Date.now();
   for (const [i, it] of items.entries()) {
     const text = await embedText(sampleDocumentText(it));
-    const { data, info } = await sharp(path.join(ROOT, 'public', it.src)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const image = await embedRaw(new RawImage(new Uint8ClampedArray(data), info.width, info.height, 4));
-    out.push({ id: it.id, text: packInt8(text), image: packInt8(image) });
+    const thumb = path.join(ROOT, 'public', it.src);
+    if (prevImg.has(it.id) && fs.statSync(thumb).mtimeMs < prevT) {
+      out.push({ id: it.id, text: packInt8(text), image: prevImg.get(it.id) }); reused++;
+    } else {
+      const { data, info } = await sharp(thumb).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const image = await embedRaw(new RawImage(new Uint8ClampedArray(data), info.width, info.height, 4));
+      out.push({ id: it.id, text: packInt8(text), image: packInt8(image) });
+    }
     if (i % 25 === 0) console.log(`embed ${i}/${items.length} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   }
   const p = path.join(dir, 'embeddings.json');
   fs.writeFileSync(p, JSON.stringify({ ...meta(), encoding: 'int8-base64', library: out }));
+  console.log(`image vectors reused: ${reused}/${items.length}`);
   console.log('wrote', p, (fs.statSync(p).size / 1024).toFixed(0) + 'KB');
 }
 if (import.meta.url === `file://${process.argv[1]}`) await embedFile(process.argv[2]);

@@ -42,7 +42,7 @@ let cpuBinaryConfigured = false;
  * GPU, point ONNX Runtime at the plain CPU WASM binary (self-hosted in /ort)
  * before the first session is created.
  */
-function useCpuWasmBinary() {
+function configureCpuWasmBinary() {
   if (cpuBinaryConfigured) return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onnx = (env.backends as any).onnx;
@@ -132,7 +132,7 @@ export async function loadEmbedder(
         throw new GpuFailedError();
       }
     }
-    useCpuWasmBinary();
+    configureCpuWasmBinary();
     const info = await loadWith('wasm', 'q8', onProgress);
     await embeddingFromInputs('warm-up');
     return info;

@@ -39,12 +39,33 @@ async function getIndex() {
   }
   throw new Error(`No index.json or stories.json under ${BASE}`);
 }
+// Catch-all title segments that are groupings, not component names.
+const GROUPS = /^(components?|fluid components|preview|private|behaviors|patterns|elements|experimental|hooks|utilities|features|examples|interactions)$/i;
+export function componentOf(title) {
+  const parts = title.split('/').map((p) => p.trim());
+  const named = parts.find((p) => !GROUPS.test(p));
+  return named ?? parts.at(-1);
+}
+const humanize = (s) => s.replace(/^preview_+/i, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+// Non-visual hooks/utilities: React hooks, providers and id helpers have no meaningful screenshot.
+const NON_VISUAL = (title) => /(^|\/)hooks?(\/|$)/i.test(title) || /^use[A-Z]/.test(componentOf(title)) ||
+  /^(ThemeProvider|ClassPrefix|IdPrefix|ErrorBoundary|Portal|Customization|AriaAlert)$/.test(componentOf(title));
+// Overlay components: try to capture them open.
+const OVERLAY = /^(Menu|MenuButton|OverflowMenu|preview__OverflowMenuV2|Tooltip|TooltipV2|Toggletip|DefinitionTooltip|Popover|ActionMenu|AnchoredOverlay|SelectPanel|Dropdown|FluidDropdown|ComboBox|FluidComboBox|MultiSelect|FluidMultiSelect|ComboButton|Autocomplete|Details)$/;
+const OPEN_NAME = /\b(open|opened|expanded|visible|show(n|ing)?)\b/i;
 const SKIP = /deprecated|experimental|unstable|internal|playground|test|dev ?only|figma|overview|kitchen ?sink|\bdocs?\b/i;
 const all = (await getIndex()).filter((e) =>
-  (e.type ?? 'story') === 'story' && !(e.tags ?? []).includes('docs') && !e.parameters?.docsOnly && !SKIP.test(`${e.title} ${e.name}`));
+  (e.type ?? 'story') === 'story' && !(e.tags ?? []).includes('docs') && !e.parameters?.docsOnly && !SKIP.test(`${e.title} ${e.name}`) && !NON_VISUAL(e.title));
+const nonVisualDropped = (await getIndex()).filter((e) => (e.type ?? 'story') === 'story' && NON_VISUAL(e.title)).length;
 // round-robin across components
 const groups = new Map();
-for (const e of all) { const g = groups.get(e.title) ?? []; if (g.length < PER) g.push(e); groups.set(e.title, g); }
+// Group by component (not raw title), and put stories that are already open first for overlay components.
+const byComp = new Map();
+for (const e of all) { const k = componentOf(e.title); byComp.set(k, [...(byComp.get(k) ?? []), e]); }
+for (const [k, list] of byComp) {
+  const sorted = OVERLAY.test(k) ? [...list].sort((a, b) => OPEN_NAME.test(b.name) - OPEN_NAME.test(a.name)) : list;
+  groups.set(k, sorted.slice(0, PER));
+}
 const picked = [];
 for (let round = 0; picked.length < MAX && round < PER; round++)
   for (const g of groups.values()) if (g[round] && picked.length < MAX) picked.push(g[round]);
@@ -54,12 +75,42 @@ console.log(`${NAME}: ${all.length} candidate stories in ${groups.size} componen
 const browser = await chromium.launch({ executablePath: arg('chrome', '/usr/bin/google-chrome') });
 const ctx = await browser.newContext({ viewport: { width: 1024, height: 720 }, reducedMotion: 'reduce' });
 const items = [], seen = new Map();
-let failed = 0, dupes = 0;
+let failed = 0, dupes = 0, opened = 0;
+const REUSE = flag('reuse');
+const OPEN_SEL = '[role=menu]:visible, [role=listbox]:visible, [role=tooltip]:visible, [role=dialog]:visible, :popover-open, .cds--popover--open, details[open]';
+async function tryOpen(page, e) {
+  // 1. already open?  2. ?args=open:!true  3. hover/click the first trigger in the story root.
+  if (await page.locator(OPEN_SEL).count()) return 'story';
+  await page.goto(`${BASE}/iframe.html?id=${e.id}&viewMode=story&args=open:!true;defaultOpen:!true`, { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(400);
+  if (await page.locator(OPEN_SEL).count()) return 'args';
+  const root = page.locator('#storybook-root, #root').first();
+  const trigger = root.locator('button, [role=button], summary, input[role=combobox], [aria-haspopup], abbr, [tabindex="0"]').first();
+  if (!(await trigger.count())) return null;
+  try {
+    await trigger.hover({ timeout: 2000 }); await page.waitForTimeout(500);
+    if (await page.locator(OPEN_SEL).count()) return 'hover';
+    await trigger.click({ timeout: 2000 }); await page.waitForTimeout(500);
+    if (await page.locator(OPEN_SEL).count()) return 'click';
+  } catch { /* not interactable */ }
+  return null;
+}
 async function shoot(e) {
   const page = await ctx.newPage();
   try {
     await page.goto(`${BASE}/iframe.html?id=${e.id}&viewMode=story`, { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForTimeout(400);
+    const component = componentOf(e.title);
+    const thumbPath = path.join(OUT, 'thumbs', `${e.id}.webp`);
+    let state = null;
+    if (OVERLAY.test(component)) { state = await tryOpen(page, e); if (state) opened++; }
+    else if (REUSE && fs.existsSync(thumbPath)) {
+      const webp = fs.readFileSync(thumbPath);
+      const tiny = await sharp(webp).resize(16, 16, { fit: 'fill' }).grayscale().raw().toBuffer();
+      const hash = crypto.createHash('sha1').update(Buffer.from(tiny.map((v) => v >> 4))).digest('hex');
+      if (seen.has(hash)) { dupes++; return; }
+      seen.set(hash, e.id); items.push(record(e, component, null)); return;
+    }
     const png = await page.screenshot({ animations: 'disabled' });
     let img = sharp(png).flatten({ background: '#ffffff' });
     try { img = sharp(await img.trim({ threshold: 12 }).toBuffer()); } catch { /* blank page */ }
@@ -72,14 +123,17 @@ async function shoot(e) {
     const hash = crypto.createHash('sha1').update(Buffer.from(tiny.map((v) => v >> 4))).digest('hex');
     if (seen.has(hash)) { dupes++; return; }
     seen.set(hash, e.id);
-    fs.writeFileSync(path.join(OUT, 'thumbs', `${e.id}.webp`), webp);
-    const parts = e.title.split('/');
-    const component = parts.length > 1 ? parts[1] : parts[0];
-    items.push({ id: e.id, label: `${component} · ${e.name}`, category: component, title: e.title,
-      description: `${e.title.replace(/\//g, ' › ')} story "${e.name}"`, tags: [],
-      src: `/systems/${ID}/thumbs/${e.id}.webp`, url: `${BASE}/?path=/story/${e.id}` });
+    fs.writeFileSync(thumbPath, webp);
+    items.push(record(e, component, state));
   } catch (err) { failed++; console.warn('skip', e.id, String(err.message).split('\n')[0]); }
   finally { await page.close(); }
+}
+function record(e, component, state) {
+  const human = humanize(component);
+  return { id: e.id, label: `${human} · ${e.name}${state ? ' (open)' : ''}`, category: component, title: e.title,
+    description: `${human} component, "${e.name}" example${state ? ', shown open' : ''}. From ${e.title.replace(/\//g, ' › ')}`,
+    tags: [human.toLowerCase()], state: state ? 'open' : undefined,
+    src: `/systems/${ID}/thumbs/${e.id}.webp`, url: `${BASE}/?path=/story/${e.id}` };
 }
 let next = 0;
 await Promise.all(Array.from({ length: CONC }, async () => {
@@ -88,9 +142,9 @@ await Promise.all(Array.from({ length: CONC }, async () => {
 await browser.close();
 const order = new Map(picked.map((e, i) => [e.id, i]));
 items.sort((a, b) => order.get(a.id) - order.get(b.id));
-console.log(`screenshots: ${items.length} kept, ${dupes} duplicates dropped, ${failed} failed`);
+console.log(`screenshots: ${items.length} kept, ${dupes} duplicates dropped, ${failed} failed, ${opened} overlays captured open, ${nonVisualDropped} non-visual stories excluded`);
 const manifest = { id: ID, name: NAME, source: BASE, license: LICENSE, indexedAt: new Date().toISOString(),
-  stats: { candidates: all.length, components: groups.size, picked: picked.length, kept: items.length, duplicates: dupes, failed }, items };
+  stats: { candidates: all.length, components: groups.size, picked: picked.length, kept: items.length, duplicates: dupes, failed, openOverlays: opened, nonVisualExcluded: nonVisualDropped }, items };
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest));
 if (flag('skip-embed')) process.exit(0);
 
