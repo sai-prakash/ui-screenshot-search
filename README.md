@@ -47,6 +47,56 @@ The Weak band (0.04 below the cutoff) is a display choice, not a measured interv
 
 **Caveats.** The library is 19 small synthetic SVGs made for this demo, and the test set is only 26 queries, so a single query changes the results noticeably. The cutoff was picked on just 14 dev queries and catches fewer than half of the test no-match queries. The library's scores sit in a narrow band, so treat these numbers as a sanity check, not a benchmark. The browser's GPU path uses `q4f16` weights while all of these numbers come from `q8`; parity between the two hasn't been measured.
 
+## Real design systems: IBM Carbon and GitHub Primer
+
+A picker at the top switches between the 19-item **Sample**, **IBM Carbon** and **GitHub Primer**. The real systems were indexed from their public Storybooks with `scripts/index-storybook.mjs`, which works on any public Storybook (v7+ `index.json` or v6 `stories.json`).
+
+| System | Storybook | Candidates (docs skipped) | Picked (cap 400, max 6 per component) | Kept after dedupe | Components |
+| --- | --- | --- | --- | --- | --- |
+| IBM Carbon | https://react.carbondesignsystem.com | 489 | 400 | 359 (40 duplicate renders, 1 blank) | 80 |
+| GitHub Primer | https://primer.style/react/storybook | 806 | 400 | 333 (67 duplicate renders) | 64 |
+
+Measured with `node scripts/eval-systems.mjs carbon primer` (writes `src/data/system-eval.json`). 22 plain-language queries per system, in `scripts/system-eval-queries.json`, written before the indexes were built. A hit counts when the story's component (from its Storybook title) is one of the expected ones.
+
+| System | Fusion top-1 | Fusion top-3 | Text-only top-1 / top-3 | Image-only top-1 / top-3 |
+| --- | --- | --- | --- | --- |
+| IBM Carbon | 13 / 22 | 13 / 22 | 13 / 13 | 13 / 15 |
+| GitHub Primer | 11 / 22 | 15 / 22 | 10 / 14 | 8 / 14 |
+
+These are much weaker than the sample-library numbers, and that is the honest picture: real libraries have hundreds of near-identical stories, story titles are terse ("Default", "Playground"), and generic queries like "main call to action" land on notifications and dialogs that contain buttons. The Strong/Weak cutoff was tuned on the sample, so it is not applied here; these systems show raw similarity. Treat 22 queries as a sanity check, not a benchmark.
+
+### Index any public Storybook
+
+```bash
+npm i --no-save sharp playwright-core        # needs a Chrome/Chromium binary (default /usr/bin/google-chrome)
+node scripts/index-storybook.mjs --url https://react.carbondesignsystem.com \
+  --id carbon --name "IBM Carbon" --license Apache-2.0 --max 400 --per-component 6
+node scripts/eval-systems.mjs carbon          # optional: needs queries in scripts/system-eval-queries.json
+```
+
+What it does:
+
+1. Reads `<url>/index.json` (or `stories.json`), drops docs entries and titles matching deprecated / experimental / playground / test / overview.
+2. Picks stories round-robin across components so one big component can't eat the cap.
+3. Opens each `iframe.html?id=<story>` in headless Chrome (1024×720, reduced motion), trims whitespace, saves a WebP thumbnail (max 480×360, q72) and drops perceptually identical renders.
+4. Embeds each story's text (`title › story name`) and thumbnail with the same model and document format as the sample, and stores the vectors as int8 with a per-vector scale (`scripts/embed-system.mjs`).
+
+Output goes to `public/systems/<id>/` (`manifest.json`, `embeddings.json`, `examples.json`, `thumbs/`). To show a new system in the UI, add it to `SYSTEMS` in `src/lib/systems.ts`. Indexing about 400 stories took roughly 20 minutes of screenshots and 10 minutes of CPU embedding on the build box.
+
+Asset size: Carbon 3.0 MB (2.2 MB thumbnails, 0.76 MB embeddings, 0.15 MB manifest), Primer 2.6 MB (1.7 MB, 0.72 MB, 0.14 MB). Nothing is fetched until you pick a system, and embeddings only load in live mode.
+
+### Credits and licenses
+
+- Screenshots of **IBM Carbon** components come from the public [Carbon React Storybook](https://react.carbondesignsystem.com). Carbon is © IBM, [Apache-2.0](https://github.com/carbon-design-system/carbon/blob/main/LICENSE).
+- Screenshots of **GitHub Primer** components come from the public [Primer React Storybook](https://primer.style/react/storybook). Primer is © GitHub, [MIT](https://github.com/primer/react/blob/main/LICENSE).
+- Each result links back to its source story. This project is not affiliated with IBM or GitHub.
+
+### Known gaps in the indexing
+
+- Category is the second Storybook title segment, so a few groups are mislabelled (Carbon "Fluid Components" holds FluidSlider and friends; Primer has a "Components" bucket). That costs at least one Carbon slider query.
+- Primer hooks (`useAnchoredPosition` etc.) were indexed even though they're not visual components.
+- Screenshots are of the default viewport only; overlays that need a click (menus, tooltips) often render closed.
+
 ## Privacy
 
 What you type or upload is embedded on your device and never sent anywhere. The page does make normal network requests: model files from Hugging Face (only after you opt in), the library embeddings file from this site, and the Inter font from Google Fonts.
@@ -90,5 +140,8 @@ npx vercel --prod
 ```
 
 ## License
+
+Carbon and Primer screenshots in `public/systems/` keep their upstream licenses (Apache-2.0 and MIT, see above).
+
 
 Apache-2.0, matching EmbeddingGemma 2's license. The sample SVGs in `public/samples/` are original to this repo.

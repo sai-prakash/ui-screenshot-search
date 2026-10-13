@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { detectWebGPU, AUTO_RESUME_KEY } from '../lib/gpu';
 import { friendlyError, GpuFailedError } from '../lib/errors';
 import { matchStrength } from '../lib/matchStrength';
+import systemEval from '../data/system-eval.json';
 import { evalSummary, STRONG_FROM, WEAK_FROM } from '../lib/evalSummary';
 
 export type EmbedderProgress = { file?: string; loaded: number; total: number };
@@ -158,6 +159,27 @@ export function EvalNote(props: { components: number }) {
         benchmark. Labels: Strong from similarity {STRONG_FROM.toFixed(2)}, Weak from{' '}
         {WEAK_FROM.toFixed(2)}, No match below that. The cutoff was picked on a separate set of dev
         queries and only applies to text searches.
+      </p>
+    </section>
+  );
+}
+
+type SysModes = Record<'text' | 'image' | 'fusion', { top1: number; top3: number; n: number }>;
+export function SystemEvalNote(props: { id: string }) {
+  const r = (systemEval.systems as Record<string, { stories: number; components: number; modes: SysModes }>)[props.id];
+  if (!r) return null;
+  const f = r.modes.fusion;
+  return (
+    <section className="eval-note" aria-labelledby="eval-title">
+      <h2 id="eval-title">How well it works on this system</h2>
+      <p>
+        On {f.n} plain-language queries written before indexing, a story from the right component came first{' '}
+        {f.top1} of {f.n} times and was in the top 3 {f.top3} of {f.n} times. Text only: {r.modes.text.top1} and{' '}
+        {r.modes.text.top3}. Screenshot only: {r.modes.image.top1} and {r.modes.image.top3}.
+      </p>
+      <p className="muted">
+        {r.stories} stories across {r.components} components. A small hand-written query set, so read it as a
+        sanity check, not a benchmark. Text matching sees the Storybook title and story name.
       </p>
     </section>
   );
