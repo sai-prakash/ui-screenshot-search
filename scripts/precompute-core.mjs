@@ -25,6 +25,7 @@ async function emb(text, image) {
   return Array.from(e.data).slice(0, e.dims.at(-1));
 }
 export const embedText = (t) => emb(t);
+export const embedRaw = (img) => emb(null, img);
 export async function embedSvg(publicSrc) {
   const { data, info } = await sharp(path.join(ROOT, 'public', publicSrc))
     .ensureAlpha().raw().toBuffer({ resolveWithObject: true });

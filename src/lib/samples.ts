@@ -5,6 +5,8 @@ export type SampleComponent = {
   description: string;
   tags: string[];
   src: string;
+  /** Link to the source story, for indexed design systems. */
+  url?: string;
 };
 
 export const SAMPLES: SampleComponent[] = [

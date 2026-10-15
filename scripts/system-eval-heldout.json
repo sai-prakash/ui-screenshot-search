@@ -1,0 +1,71 @@
+{
+  "note": "FRESH held-out set, written 2026-10-13 BEFORE the naming/hook/open-state/threshold fixes were re-run, and never used for tuning. `test` = answerable queries (hit when the result's component is in `expected`); `none` = queries with no matching component in the system, used only to report no-match detection. The no-match cutoff is calibrated on the ORIGINAL 22 queries per system (scripts/system-eval-queries.json, now the dev set) plus the dev `none` queries in scripts/system-eval-dev-none.json.",
+  "carbon": {
+    "test": [
+      {"q": "button with a dropdown arrow for more related actions", "expected": ["ComboButton", "MenuButton"]},
+      {"q": "three vertical dots that open a list of options", "expected": ["OverflowMenu", "preview__OverflowMenuV2"]},
+      {"q": "list of options that opens when you click a button", "expected": ["MenuButton", "Menu", "OverflowMenu", "Dropdown", "FluidDropdown"]},
+      {"q": "select several items from a list with checkboxes", "expected": ["MultiSelect", "FluidMultiSelect"]},
+      {"q": "text field you can type in that also suggests options", "expected": ["ComboBox", "FluidComboBox"]},
+      {"q": "field where the password is hidden with an eye icon", "expected": ["PasswordInput", "FluidPasswordInput", "TextInput"]},
+      {"q": "box with a magnifying glass to find things", "expected": ["Search", "FluidSearch"]},
+      {"q": "calendar to choose a day", "expected": ["DatePicker", "FluidDatePicker"]},
+      {"q": "enter a time of day with AM PM", "expected": ["TimePicker", "FluidTimePicker"]},
+      {"q": "temporary message that pops up in the corner", "expected": ["Notifications"]},
+      {"q": "horizontal bar that fills up as a task progresses", "expected": ["ProgressBar"]},
+      {"q": "app header bar with product name and side navigation", "expected": ["UI Shell"]},
+      {"q": "clickable card with content", "expected": ["Tile", "preview__Card"]},
+      {"q": "nested folders you can expand and collapse", "expected": ["TreeView"]},
+      {"q": "small info icon you click to show extra explanation", "expected": ["Toggletip", "Popover", "DefinitionTooltip", "Tooltip"]},
+      {"q": "text with a dotted underline that explains a term", "expected": ["DefinitionTooltip"]},
+      {"q": "message shown when there is nothing to display yet", "expected": ["EmptyState"]},
+      {"q": "coloured dot or icon showing success warning or error status", "expected": ["StatusIndicators", "preview__IconIndicator", "preview__ShapeIndicator"]},
+      {"q": "table rows with checkboxes and bulk actions toolbar", "expected": ["DataTable"]},
+      {"q": "numbered list of items", "expected": ["OrderedList"]},
+      {"q": "list of rows with simple label and value pairs", "expected": ["StructuredList", "ContainedList"]},
+      {"q": "hyperlink inside text", "expected": ["Link"]}
+    ],
+    "none": [
+      {"q": "star rating out of five"},
+      {"q": "video player with play and pause"},
+      {"q": "kanban board with draggable cards"},
+      {"q": "map with location pins"},
+      {"q": "chat conversation with message bubbles"},
+      {"q": "color picker swatch wheel"}
+    ]
+  },
+  "primer": {
+    "test": [
+      {"q": "list of actions with icons that opens from a button", "expected": ["ActionMenu", "ActionList"]},
+      {"q": "searchable list to pick labels or assignees", "expected": ["SelectPanel", "FilteredActionList", "Autocomplete"]},
+      {"q": "text input that suggests matches as you type", "expected": ["Autocomplete"]},
+      {"q": "speech bubble that explains a button on hover", "expected": ["TooltipV2"]},
+      {"q": "floating card pointing at an element with a tip", "expected": ["Popover", "AnchoredOverlay"]},
+      {"q": "modal window with a title and close button", "expected": ["Dialog", "ConfirmationDialog", "Overlay"]},
+      {"q": "square icon only button", "expected": ["IconButton"]},
+      {"q": "text styled as a clickable link", "expected": ["Link", "LinkButton"]},
+      {"q": "how long ago something happened, like 3 days ago", "expected": ["RelativeTime"]},
+      {"q": "long text cut off with an ellipsis", "expected": ["Truncate"]},
+      {"q": "dropdown to choose one value from a native list", "expected": ["Select"]},
+      {"q": "big multi line field for writing a description", "expected": ["Textarea"]},
+      {"q": "single line field with a label and validation message", "expected": ["TextInput", "FormControl"]},
+      {"q": "group of checkboxes with a heading", "expected": ["CheckboxGroup"]},
+      {"q": "page title area with actions on the right", "expected": ["PageHeader"]},
+      {"q": "page with a main column and a sidebar pane", "expected": ["PageLayout", "SplitPageLayout"]},
+      {"q": "dark top bar of the website with logo", "expected": ["Header"]},
+      {"q": "grey loading placeholder in the shape of a profile picture", "expected": ["Skeleton"]},
+      {"q": "coloured outlined tag like bug or enhancement", "expected": ["Label", "LabelGroup", "Token"]},
+      {"q": "section that shows more content when you click summary", "expected": ["Details"]},
+      {"q": "large title text", "expected": ["Heading"]},
+      {"q": "events in an issue such as closed or referenced", "expected": ["Timeline"]}
+    ],
+    "none": [
+      {"q": "star rating out of five"},
+      {"q": "video player with play and pause"},
+      {"q": "calendar to pick a date"},
+      {"q": "map with location pins"},
+      {"q": "drag a handle to choose a number in a range"},
+      {"q": "color picker swatch wheel"}
+    ]
+  }
+}
